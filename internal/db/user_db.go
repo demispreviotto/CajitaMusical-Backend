@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/demispreviotto/cajitamusical/backend/internal/models" // Replace with your module path
+	"github.com/demispreviotto/cajitamusical/backend/internal/models"
 )
 
 // CreateUser creates a new user in the database.

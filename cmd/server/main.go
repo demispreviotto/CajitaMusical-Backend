@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/demispreviotto/cajitamusical/backend/internal/controllers"
 	"github.com/demispreviotto/cajitamusical/backend/internal/db"
@@ -15,6 +16,14 @@ func main() {
 	err := godotenv.Load()
 	if err != nil {
 		log.Println("Error loading .env file")
+	}
+
+	// Check if required environment variables are set
+	requiredEnv := []string{"DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME", "PORT"}
+	for _, envVar := range requiredEnv {
+		if os.Getenv(envVar) == "" {
+			log.Fatalf("Required environment variable '%s' is not set", envVar)
+		}
 	}
 
 	if err := db.Connect(); err != nil {
@@ -35,5 +44,6 @@ func main() {
 		protected.GET("/audio/:filename", controllers.ServeAudio)
 	}
 
-	router.Run(":8080")
+	port := os.Getenv("PORT")
+	router.Run(":" + port)
 }
