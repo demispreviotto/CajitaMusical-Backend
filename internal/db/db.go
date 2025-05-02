@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // DB holds the PostgreSQL database connection pool.
-var DB *pgx.Conn
+var DB *pgxpool.Pool
 
 // Connect establishes a connection to the PostgreSQL database.
 func Connect() error {
@@ -21,20 +21,29 @@ func Connect() error {
 		os.Getenv("DB_NAME"),
 	)
 
-	conn, err := pgx.Connect(context.Background(), connStr)
+	config, err := pgxpool.ParseConfig(connStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse connection string: %w", err)
+	}
+
+	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	DB = conn
+	DB = pool
 	fmt.Println("Successfully connected to PostgreSQL!")
 	return nil
 }
 
 // Close closes the database connection pool.
-func Close() error {
+func Close() {
 	if DB != nil {
-		return DB.Close(context.Background())
+		DB.Close()
 	}
-	return nil
+}
+
+// GetDB returns the database connection pool.
+func GetDB() *pgxpool.Pool {
+	return DB
 }
