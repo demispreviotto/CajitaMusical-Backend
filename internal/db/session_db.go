@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/demispreviotto/cajitamusical/backend/internal/models" // Replace with your module path
+	"github.com/demispreviotto/cajitamusical/backend/internal/models"
 )
 
 // CreateSession creates a new session in the database.

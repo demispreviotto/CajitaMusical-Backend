@@ -4,44 +4,60 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/demispreviotto/cajitamusical/backend/internal/db"     // Replace with your module path
-	"github.com/demispreviotto/cajitamusical/backend/internal/models" // Replace with your module path
+	"github.com/demispreviotto/cajitamusical/backend/internal/db"
+	"github.com/demispreviotto/cajitamusical/backend/internal/models"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// RegisterUser handles the registration of a new user.
-func RegisterUser(c *gin.Context) {
-	var user models.User
-	var password string
+// RegisterUserInput defines the request body to user registration.
+type RegisterUserInput struct {
+	Username string `json:"username" binding:"required"`
+	Email    string `json:"email" binding:"required,email"`
+	Name     string `json:"name" binding:"required"`
+	Password string `json:"password" binding:"required,min=6"`
+}
 
-	if err := c.ShouldBindJSON(&struct {
-		Username string `json:"username" binding:"required"`
-		Email    string `json:"email" binding:"required,email"`
-		Name     string `json:"name" binding:"required"`
-		Password string `json:"password" binding:"required,min=6"`
-	}{
-		Username: user.Username,
-		Email:    user.Email,
-		Name:     user.Name,
-		Password: password,
-	}); err != nil {
+// UserResponse defines the response for a successfully registered user.
+type UserResponse struct {
+	ID       uint   `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Name     string `json:"name"`
+}
+
+func RegisterUser(c *gin.Context) {
+	var userInput RegisterUserInput
+
+	if err := c.ShouldBindJSON(&userInput); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Hash the password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(userInput.Password), bcrypt.DefaultCost)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
 		return
 	}
 
-	// Create the user in the database
+	user := models.User{
+		Username: userInput.Username,
+		Email:    userInput.Email,
+		Name:     userInput.Name,
+		// Password field should likely be handled by db.CreateUser
+	}
+
 	if err := db.CreateUser(context.Background(), &user, string(hashedPassword)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "User registered successfully"})
+	response := UserResponse{
+		ID:       uint(user.ID),
+		Username: user.Username,
+		Email:    user.Email,
+		Name:     user.Name,
+	}
+
+	c.JSON(http.StatusCreated, response)
 }

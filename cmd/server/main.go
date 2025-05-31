@@ -11,6 +11,20 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// @title Cajita Musical API
+// @version 1.0
+// @description This is the API for the Cajita Musical application.
+
+// @contact.name Demis Previotto
+// @contact.url http://demispreviotto.com
+// @contact.email demis.previotto@example.com
+
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host localhost:8080
+// @BasePath /
+
 func main() {
 	// Load environment variables from .env file
 	err := godotenv.Load()
@@ -43,7 +57,6 @@ func main() {
 		protected.GET("/library", controllers.GetLibrary)
 		protected.GET("/audio/:filename", controllers.ServeAudio)
 	}
-
 	port := os.Getenv("PORT")
 	router.Run(":" + port)
 }

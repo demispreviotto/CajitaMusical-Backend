@@ -5,19 +5,35 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/demispreviotto/cajitamusical/backend/internal/db"     // Replace with your module path
-	"github.com/demispreviotto/cajitamusical/backend/internal/models" // Replace with your module path
+	"github.com/demispreviotto/cajitamusical/backend/internal/db"
+	"github.com/demispreviotto/cajitamusical/backend/internal/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// LoginUser handles user login.
+// LoginUserInput defines the request body for user login.
+type LoginUserInput struct {
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+// UserInfo defines the user information in the login response.
+type UserInfo struct {
+	ID       uint   `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Name     string `json:"name"`
+}
+
+// LoginResponse defines the response for a successful login.
+type LoginResponse struct {
+	Message string   `json:"message"`
+	User    UserInfo `json:"user"`
+}
+
 func LoginUser(c *gin.Context) {
-	var loginRequest struct {
-		Username string `json:"username" binding:"required"`
-		Password string `json:"password" binding:"required"`
-	}
+	var loginRequest LoginUserInput
 
 	if err := c.ShouldBindJSON(&loginRequest); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -55,5 +71,5 @@ func LoginUser(c *gin.Context) {
 	// Set the session cookie
 	c.SetCookie("session_id", sessionID, int(time.Until(expiresAt).Seconds()), "/", "", false, true)
 
-	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "user": gin.H{"id": user.ID, "username": user.Username, "email": user.Email, "name": user.Name}})
+	c.JSON(http.StatusOK, LoginResponse{Message: "Login successful", User: UserInfo{ID: uint(user.ID), Username: user.Username, Email: user.Email, Name: user.Name}})
 }

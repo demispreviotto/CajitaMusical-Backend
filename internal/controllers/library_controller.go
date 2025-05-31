@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetLibrary retrieves the list of songs.
 func GetLibrary(c *gin.Context) {
 	songs, err := db.GetSongLibrary(context.Background())
 	if err != nil {

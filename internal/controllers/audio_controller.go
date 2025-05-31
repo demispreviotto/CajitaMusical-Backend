@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ServeAudio serves the requested audio file.
 func ServeAudio(c *gin.Context) {
 	filename := c.Param("filename")
 	if filename == "" {

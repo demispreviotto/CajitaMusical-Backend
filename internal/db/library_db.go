@@ -9,7 +9,6 @@ import (
 	"github.com/demispreviotto/cajitamusical/backend/internal/models" // Replace with your module path
 )
 
-// GetSongLibrary reads the song files from the configured directory.
 func GetSongLibrary(ctx context.Context) ([]*models.Song, error) {
 	musicDir := os.Getenv("MUSIC_DIRECTORY") // Configure this environment variable
 
