@@ -1,8 +1,9 @@
-module github.com/demispreviotto/cajitamusical/backend
+module github.com/demispreviotto/cajitamusical/cajitamusical-backend
 
 go 1.24.2
 
 require (
+	github.com/gin-contrib/cors v1.7.5
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.4

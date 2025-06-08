@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/demispreviotto/cajitamusical/backend/internal/models"
+	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/models"
 )
 
 // CreateUser creates a new user in the database.
@@ -44,4 +44,27 @@ func GetUserByUsername(ctx context.Context, username string) (*models.User, stri
 	}
 
 	return user, passwordHash, nil
+}
+
+// GetUserByID retrieves a user from the database by their ID.
+// Este es el ajuste para tu estructura de DB
+func GetUserByID(ctx context.Context, userID int) (*models.User, error) {
+	user := &models.User{}
+	// No necesitamos la tabla 'authentication' ni el 'password_hash' aquí,
+	// ya que solo queremos la información pública del usuario.
+	err := DB.QueryRow(ctx,
+		"SELECT id, username, email, name, created_at, updated_at FROM users WHERE id = $1",
+		userID,
+	).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.Name,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user by ID: %w", err)
+	}
+	return user, nil
 }

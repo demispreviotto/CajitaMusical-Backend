@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/demispreviotto/cajitamusical/backend/internal/db" // Replace with your module path
+	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/db" // Replace with your module path
 	"github.com/gin-gonic/gin"
 )
 

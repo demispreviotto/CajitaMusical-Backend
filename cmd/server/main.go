@@ -3,27 +3,16 @@ package main
 import (
 	"log"
 	"os"
+	"strconv"
+	"time"
 
-	"github.com/demispreviotto/cajitamusical/backend/internal/controllers"
-	"github.com/demispreviotto/cajitamusical/backend/internal/db"
-	"github.com/demispreviotto/cajitamusical/backend/internal/middleware"
+	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/controllers"
+	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/db"
+	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/middleware"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
-
-// @title Cajita Musical API
-// @version 1.0
-// @description This is the API for the Cajita Musical application.
-
-// @contact.name Demis Previotto
-// @contact.url http://demispreviotto.com
-// @contact.email demis.previotto@example.com
-
-// @license.name Apache 2.0
-// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
-
-// @host localhost:8080
-// @BasePath /
 
 func main() {
 	// Load environment variables from .env file
@@ -40,6 +29,16 @@ func main() {
 		}
 	}
 
+	corsMaxAgeHoursStr := os.Getenv("CORS_MAX_AGE_HOURS")
+	if corsMaxAgeHoursStr == "" {
+		log.Fatalf("Required environment variable 'CORS_MAX_AGE_HOURS' is not set")
+	}
+
+	corsMaxAgeHours, err := strconv.Atoi(corsMaxAgeHoursStr)
+	if err != nil {
+		log.Fatalf("Invalid value for CORS_MAX_AGE_HOURS: %v", err)
+	}
+
 	if err := db.Connect(); err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
@@ -47,13 +46,30 @@ func main() {
 
 	router := gin.Default()
 
+	// --- Configuración CORS ---
+	// Define las opciones de CORS. Es crucial que el puerto coincida con tu frontend.
+	config := cors.DefaultConfig()
+
+	config.AllowOrigins = []string{"http://localhost:5173"} // Origen de tu frontend SvelteKit.
+	config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"} // Necesario si usas Authorization
+	config.ExposeHeaders = []string{"Content-Length"}
+	config.AllowCredentials = true                             // Enviar y recibir cookies session_id
+	config.MaxAge = time.Duration(corsMaxAgeHours) * time.Hour // Duración para cachear las respuestas preflight
+
+	// Aplica el middleware CORS a tu router
+	router.Use(cors.New(config))
+	// --- Fin Configuración CORS ---
+
 	router.POST("/register", controllers.RegisterUser)
 	router.POST("/login", controllers.LoginUser)
+	router.POST("/logout", controllers.LogoutUser)
 
 	// Protected routes
 	protected := router.Group("/")
 	protected.Use(middleware.AuthMiddleware())
 	{
+		protected.GET("/me", controllers.GetAuthenticatedUser)
 		protected.GET("/library", controllers.GetLibrary)
 		protected.GET("/audio/:filename", controllers.ServeAudio)
 	}
