@@ -1,10 +1,10 @@
-package controllers
+package handlers
 
 import (
 	"context"
 	"net/http"
 
-	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/db" // Replace with your module path
+	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/db"
 	"github.com/gin-gonic/gin"
 )
 

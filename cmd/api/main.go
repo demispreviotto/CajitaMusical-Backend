@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/controllers"
+	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/api"
 	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/db"
-	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/middleware"
+	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/models"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -44,6 +44,20 @@ func main() {
 	}
 	defer db.Close()
 
+	// AutoMigrar tus modelos GORM
+	log.Println("Running GORM auto-migrations...")
+	err = db.DB.AutoMigrate(
+		&models.User{},
+		&models.Authentication{},
+		&models.Session{},
+		&models.Song{},
+		// Añade cualquier otro modelo que GORM deba gestionar aquí
+	)
+	if err != nil {
+		log.Fatalf("Failed to auto-migrate database: %v", err)
+	}
+	log.Println("GORM auto-migrations completed.")
+
 	router := gin.Default()
 
 	// --- Configuración CORS ---
@@ -61,18 +75,8 @@ func main() {
 	router.Use(cors.New(config))
 	// --- Fin Configuración CORS ---
 
-	router.POST("/register", controllers.RegisterUser)
-	router.POST("/login", controllers.LoginUser)
-	router.POST("/logout", controllers.LogoutUser)
+	api.SetupRoutes(router)
 
-	// Protected routes
-	protected := router.Group("/")
-	protected.Use(middleware.AuthMiddleware())
-	{
-		protected.GET("/me", controllers.GetAuthenticatedUser)
-		protected.GET("/library", controllers.GetLibrary)
-		protected.GET("/audio/:filename", controllers.ServeAudio)
-	}
 	port := os.Getenv("PORT")
 	router.Run(":" + port)
 }
