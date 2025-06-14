@@ -2,77 +2,180 @@ package services
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/db"
 	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/dto/song"
+	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/models"
+	"github.com/google/uuid"
 )
 
-// SongServicer define la interfaz para las operaciones del servicio de canciones.
-//
-//go:generate mockgen -source=song_service.go -destination=mocks/mock_song_service.go
+// SongServicer defines the interface for song-related business logic.
 type SongServicer interface {
 	GetLibrary(ctx context.Context) ([]song.SongResponse, error)
-	GetSongFilePath(filename string) (string, error)
-	// Add other song-related service methods
+	ScanMusicLibrary(ctx context.Context) (*song.MusicScanResult, error)
+	GetSongFilePath(songID string) (string, error)
+	GetAlbumArtPath(imageFileName string) (string, error)
+	// Add other song service methods here (e.g., GetSongByID, UpdateSongMetadata)
 }
 
-// songService es la implementación concreta de SongServicer.
+// songService is the concrete implementation of SongServicer.
 type songService struct {
-	songDB   db.SongDBer
-	musicDir string
+	songDB db.SongDBer
 }
 
-// NewSongService crea una nueva instancia de SongService.
-func NewSongService(songDB db.SongDBer, musicDir string) SongServicer {
-	return &songService{songDB: songDB, musicDir: musicDir}
+// NewSongService creates a new instance of SongService.
+func NewSongService(songDB db.SongDBer) SongServicer {
+	return &songService{songDB: songDB}
 }
 
-// GetLibrary retrieves the song library and maps it to DTOs.
+// GetLibrary retrieves the song library from the database.
 func (s *songService) GetLibrary(ctx context.Context) ([]song.SongResponse, error) {
 	modelsSongs, err := s.songDB.GetSongLibrary(ctx)
 	if err != nil {
-		log.Printf("Service: Failed to fetch song library from DB: %v", err)
-		return nil, errors.New("failed to retrieve song library")
+		return nil, err
 	}
-
 	var responseSongs []song.SongResponse
-	for _, modelSong := range modelsSongs {
-		responseSongs = append(responseSongs, song.SongResponse{
-			ID:              modelSong.ID,
-			Title:           modelSong.Title,
-			Artist:          modelSong.Artist,
-			Album:           modelSong.Album,
-			TrackNumber:     modelSong.TrackNumber,
-			Genre:           modelSong.Genre,
-			Year:            modelSong.Year,
-			DurationSeconds: modelSong.DurationSeconds,
-			FilePath:        modelSong.FilePath,
-			Filename:        modelSong.Filename,
-			CreatedAt:       modelSong.CreatedAt.Format(time.RFC3339), // Standardized format
-			UpdatedAt:       modelSong.UpdatedAt.Format(time.RFC3339), // Standardized format
-			AlbumArtPath:    modelSong.AlbumArtPath,
-		})
+	for _, song := range modelsSongs {
+		responseSongs = append(responseSongs, s.mapSongToResponse(song))
 	}
-
 	return responseSongs, nil
 }
 
-// GetSongFilePath constructs and validates the full path to a song file.
-func (s *songService) GetSongFilePath(filename string) (string, error) {
-	if filename == "" {
-		return "", errors.New("filename is required")
+func (s *songService) mapSongToResponse(modelSong models.Song) song.SongResponse {
+	return song.SongResponse{
+		ID:              modelSong.ID,
+		Title:           modelSong.Title,
+		Artist:          modelSong.Artist,
+		Album:           modelSong.Album,
+		TrackNumber:     modelSong.TrackNumber,
+		Genre:           modelSong.Genre,
+		Year:            modelSong.Year,
+		DurationSeconds: modelSong.DurationSeconds,
+		AudioStreamURL:  fmt.Sprintf("/api/audio/%s", modelSong.ID.String()),
+		Filename:        modelSong.Filename,
+		CreatedAt:       modelSong.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:       modelSong.UpdatedAt.Format(time.RFC3339),
+		AlbumArtURL:     fmt.Sprintf("/api/album-art/%s", modelSong.AlbumArtPath),
+	}
+}
+
+// ScanMusicLibrary triggers the music directory scan and database update.
+func (s *songService) ScanMusicLibrary(ctx context.Context) (*song.MusicScanResult, error) {
+	log.Println("Starting music library scan...")
+	result, err := s.songDB.ScanAndStoreSongs(ctx)
+	if err != nil {
+		log.Printf("Music library scan failed: %v", err)
+		return nil, fmt.Errorf("failed to scan music library: %w", err)
+	}
+	log.Printf("Music library scan complete. Added: %d, Updated: %d, Removed: %d. Errors: %d",
+		result.Added, result.Updated, result.Removed, len(result.Errors))
+	if len(result.Errors) > 0 {
+		for _, errMsg := range result.Errors {
+			log.Printf("Scan Error: %s", errMsg)
+		}
+	}
+	return result, nil
+}
+
+// GetSongFilePath retrieves the full file path for a song based on its ID.
+func (s *songService) GetSongFilePath(songIDStr string) (string, error) {
+	if songIDStr == "" {
+		return "", fmt.Errorf("song ID is required")
 	}
 
-	filePath := filepath.Join(s.musicDir, filename)
-
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return "", errors.New("audio file not found")
+	songID, err := uuid.Parse(songIDStr)
+	if err != nil {
+		return "", fmt.Errorf("invalid song ID format: %w", err)
 	}
 
-	return filePath, nil
+	ctx := context.Background()
+	song, err := s.songDB.GetSongByID(ctx, songID)
+	if err != nil {
+		log.Printf("Service: Song with ID %s not found: %v", songID.String(), err)
+		return "", fmt.Errorf("audio file not found")
+	}
+
+	musicDir := os.Getenv("MUSIC_DIRECTORY")
+	if musicDir == "" {
+		return "", fmt.Errorf("MUSIC_DIRECTORY environment variable not set")
+	}
+
+	fullPath := filepath.Join(musicDir, song.FilePath)
+
+	// Security check: ensure the resolved path is indeed under MUSIC_DIRECTORY
+	absMusicDir, err := filepath.Abs(musicDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to get absolute music directory: %w", err)
+	}
+	absFullPath, err := filepath.Abs(fullPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to get absolute song path: %w", err)
+	}
+
+	if !strings.HasPrefix(absFullPath, absMusicDir) {
+		return "", fmt.Errorf("attempted path traversal: %s", fullPath)
+	}
+
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		return "", fmt.Errorf("audio file not found at path: %s", fullPath)
+	}
+
+	return fullPath, nil
+}
+
+// GetAlbumArtPath retrieves the full file path for an album art image.
+func (s *songService) GetAlbumArtPath(songIDStr string) (string, error) { // Changed parameter name to songIDStr
+	if songIDStr == "" {
+		return "", fmt.Errorf("song ID is required")
+	}
+
+	songID, err := uuid.Parse(songIDStr)
+	if err != nil {
+		return "", fmt.Errorf("invalid song ID format: %w", err)
+	}
+
+	ctx := context.Background() // Or pass context from handler
+	song, err := s.songDB.GetSongByID(ctx, songID)
+	if err != nil {
+		log.Printf("Service: Song with ID %s not found: %v", songID.String(), err)
+		return "", fmt.Errorf("album art not found for song ID %s", songIDStr)
+	}
+
+	if song.AlbumArtPath == "" {
+		return "", fmt.Errorf("no album art path found for song ID %s", songIDStr)
+	}
+
+	musicDir := os.Getenv("MUSIC_DIRECTORY")
+	if musicDir == "" {
+		return "", fmt.Errorf("MUSIC_DIRECTORY environment variable not set")
+	}
+
+	// Construct the full path using MUSIC_DIRECTORY and the song's AlbumArtPath
+	fullPath := filepath.Join(musicDir, song.AlbumArtPath)
+
+	// Security check: ensure the resolved path is indeed under MUSIC_DIRECTORY
+	absMusicDir, err := filepath.Abs(musicDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to get absolute music directory: %w", err)
+	}
+	absFullPath, err := filepath.Abs(fullPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to get absolute album art path: %w", err)
+	}
+
+	if !strings.HasPrefix(absFullPath, absMusicDir) {
+		return "", fmt.Errorf("attempted path traversal: %s", fullPath)
+	}
+
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		return "", fmt.Errorf("album art image not found at path: %s", fullPath)
+	}
+
+	return fullPath, nil
 }

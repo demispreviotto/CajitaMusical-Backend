@@ -22,7 +22,7 @@ func main() {
 	}
 
 	// Check if required environment variables are set
-	requiredEnv := []string{"DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME", "PORT"}
+	requiredEnv := []string{"DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME", "PORT", "MUSIC_DIRECTORY", "FRONTEND_ORIGIN"}
 	for _, envVar := range requiredEnv {
 		if os.Getenv(envVar) == "" {
 			log.Fatalf("Required environment variable '%s' is not set", envVar)
@@ -58,13 +58,20 @@ func main() {
 	}
 	log.Println("GORM auto-migrations completed.")
 
-	router := gin.Default()
+	routerEngine := gin.Default()
 
 	// --- Configuración CORS ---
-	// Define las opciones de CORS. Es crucial que el puerto coincida con tu frontend.
 	config := cors.DefaultConfig()
 
-	config.AllowOrigins = []string{"http://localhost:5173"} // Origen de tu frontend SvelteKit.
+	// Get frontend origin from environment variable
+	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
+	if frontendOrigin == "" {
+		// This check is technically redundant if "FRONTEND_ORIGIN" is in requiredEnv,
+		// but it adds an extra layer of safety or clearer error message if requiredEnv is changed.
+		log.Fatalf("FRONTEND_ORIGIN environment variable is not set.")
+	}
+
+	config.AllowOrigins = []string{frontendOrigin} // Origen de tu frontend SvelteKit.
 	config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"} // Necesario si usas Authorization
 	config.ExposeHeaders = []string{"Content-Length"}
@@ -72,11 +79,11 @@ func main() {
 	config.MaxAge = time.Duration(corsMaxAgeHours) * time.Hour // Duración para cachear las respuestas preflight
 
 	// Aplica el middleware CORS a tu router
-	router.Use(cors.New(config))
+	routerEngine.Use(cors.New(config))
 	// --- Fin Configuración CORS ---
 
-	api.SetupRoutes(router)
+	api.SetupRoutes(routerEngine)
 
 	port := os.Getenv("PORT")
-	router.Run(":" + port)
+	routerEngine.Run(":" + port)
 }

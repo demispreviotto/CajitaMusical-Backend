@@ -1,17 +1,17 @@
 package handlers
 
 import (
-	"context"
 	"log"
 	"net/http"
+	"strings"
 
-	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/services" // Import the services package
+	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/services"
 	"github.com/gin-gonic/gin"
 )
 
 // SongHandler is a handler for song-related operations.
 type SongHandler struct {
-	songService services.SongServicer // Dependency on the song service
+	songService services.SongServicer
 }
 
 // NewSongHandler creates a new instance of SongHandler.
@@ -21,34 +21,69 @@ func NewSongHandler(songService services.SongServicer) *SongHandler {
 
 // GetLibrary retrieves the song library.
 func (h *SongHandler) GetLibrary(c *gin.Context) {
-	songs, err := h.songService.GetLibrary(context.Background())
+	songs, err := h.songService.GetLibrary(c.Request.Context()) // Use request context
 	if err != nil {
 		log.Printf("Handler: Failed to fetch song library: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}) // Return the service error
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"songs": songs})
 }
 
-// ServeAudio serves an audio file from the MUSIC_DIRECTORY.
+// ServeAudio serves an audio file by song ID.
 func (h *SongHandler) ServeAudio(c *gin.Context) {
-	filename := c.Param("filename")
+	songID := c.Param("songID") // Expecting song ID here
 
-	// Use the service to get the validated file path
-	filePath, err := h.songService.GetSongFilePath(filename)
+	filePath, err := h.songService.GetSongFilePath(songID)
 	if err != nil {
-		log.Printf("Handler: Error serving audio file %s: %v", filename, err)
-		// Map service errors to appropriate HTTP responses
-		if err.Error() == "filename is required" {
+		log.Printf("Handler: Error serving audio for song ID %s: %v", songID, err)
+		if strings.Contains(err.Error(), "required") || strings.Contains(err.Error(), "invalid") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		} else if err.Error() == "audio file not found" {
+		} else if strings.Contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else if strings.Contains(err.Error(), "path traversal") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file path"}) // Prevent leaking internal paths
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve audio file"})
 		}
 		return
 	}
 
-	// Serve the content directly from the handler, as Gin's c.File is HTTP-specific
 	c.File(filePath)
+}
+
+// ServeAlbumArt serves an album art image.
+func (h *SongHandler) ServeAlbumArt(c *gin.Context) {
+	imageFileName := c.Param("filename") // This should be the hash.jpg filename
+
+	imagePath, err := h.songService.GetAlbumArtPath(imageFileName)
+	if err != nil {
+		log.Printf("Handler: Error serving album art %s: %v", imageFileName, err)
+		if strings.Contains(err.Error(), "required") || strings.Contains(err.Error(), "invalid") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		} else if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else if strings.Contains(err.Error(), "path traversal") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid image path"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve album art"})
+		}
+		return
+	}
+
+	c.File(imagePath)
+}
+
+// ScanMusicLibrary triggers a manual scan of the music directory.
+func (h *SongHandler) ScanMusicLibrary(c *gin.Context) {
+	result, err := h.songService.ScanMusicLibrary(c.Request.Context())
+	if err != nil {
+		log.Printf("Handler: Failed to trigger music scan: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Music library scan initiated successfully",
+		"result":  result,
+	})
 }

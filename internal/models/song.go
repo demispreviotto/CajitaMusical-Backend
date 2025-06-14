@@ -22,3 +22,15 @@ type Song struct {
 	UpdatedAt       time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 	AlbumArtPath    string    `gorm:"size:512" json:"album_art_path,omitempty"`
 }
+
+func (s *Song) Equals(other *Song) bool {
+	return s.Title == other.Title &&
+		s.Artist == other.Artist &&
+		s.Album == other.Album &&
+		s.TrackNumber == other.TrackNumber &&
+		s.Genre == other.Genre &&
+		s.Year == other.Year &&
+		s.DurationSeconds == other.DurationSeconds &&
+		s.AlbumArtPath == other.AlbumArtPath
+	// You might also compare other fields if you add them (e.g., Copyright, Composer)
+}
