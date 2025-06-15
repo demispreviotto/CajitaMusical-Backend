@@ -49,7 +49,7 @@ Example: services.SongServicer (interface), services.songService (implementation
 Location: internal/services/
 Handlers (API/Presentation Layer): This layer handles incoming HTTP requests, validates input, calls the appropriate service methods, and formats the response for the client. It should be thin and primarily concern itself with HTTP.
 
-Example: handlers.SongHandler, handlers.GetLibrary(), handlers.ServeAudio().
+Example: handlers.songHandler, handlers.GetLibrary(), handlers.ServeAudio().
 Location: internal/handlers/
 DTOs (Data Transfer Objects): These are structures specifically designed for transferring data between different layers, especially between the API layer (handlers) and the client. They might represent subsets of your models, or combined data from multiple models, formatted for a specific API response or request.
 

@@ -20,7 +20,6 @@ type Song struct {
 	Filename        string    `gorm:"size:255;not null" json:"filename"`         // ej: "Cancion.mp3"
 	CreatedAt       time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt       time.Time `gorm:"autoUpdateTime" json:"updated_at"`
-	AlbumArtPath    string    `gorm:"size:512" json:"album_art_path,omitempty"`
 }
 
 func (s *Song) Equals(other *Song) bool {
@@ -30,7 +29,5 @@ func (s *Song) Equals(other *Song) bool {
 		s.TrackNumber == other.TrackNumber &&
 		s.Genre == other.Genre &&
 		s.Year == other.Year &&
-		s.DurationSeconds == other.DurationSeconds &&
-		s.AlbumArtPath == other.AlbumArtPath
-	// You might also compare other fields if you add them (e.g., Copyright, Composer)
+		s.DurationSeconds == other.DurationSeconds
 }

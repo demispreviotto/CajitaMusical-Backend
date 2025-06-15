@@ -12,18 +12,18 @@ import (
 	"github.com/google/uuid"
 )
 
-// AuthHandler es un handler para las operaciones de autenticación.
-type AuthHandler struct {
+// authHandler es un handler para las operaciones de autenticación.
+type authHandler struct {
 	authService services.AuthServicer // Dependencia del servicio de autenticación
 }
 
-// NewAuthHandler crea una nueva instancia de AuthHandler.
-func NewAuthHandler(authService services.AuthServicer) *AuthHandler {
-	return &AuthHandler{authService: authService}
+// NewauthHandler crea una nueva instancia de authHandler.
+func NewauthHandler(authService services.AuthServicer) *authHandler {
+	return &authHandler{authService: authService}
 }
 
 // LoginUser maneja el inicio de sesión del usuario.
-func (h *AuthHandler) LoginUser(c *gin.Context) {
+func (h *authHandler) LoginUser(c *gin.Context) {
 	var loginRequest auth.LoginUserInput
 
 	if err := c.ShouldBindJSON(&loginRequest); err != nil {
@@ -50,7 +50,7 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 }
 
 // LogoutUser maneja el cierre de sesión del usuario.
-func (h *AuthHandler) LogoutUser(c *gin.Context) {
+func (h *authHandler) LogoutUser(c *gin.Context) {
 	sessionIDStr, err := c.Cookie("session_id")
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "Already logged out or session expired."})
@@ -75,7 +75,7 @@ func (h *AuthHandler) LogoutUser(c *gin.Context) {
 }
 
 // CleanupExpiredSessions maneja la limpieza manual de sesiones expiradas (podría ser un endpoint de admin).
-func (h *AuthHandler) CleanupExpiredSessions(c *gin.Context) {
+func (h *authHandler) CleanupExpiredSessions(c *gin.Context) {
 	log.Println("Handler: Manual cleanup of expired sessions requested...")
 
 	if err := h.authService.CleanupExpiredSessions(context.Background()); err != nil {

@@ -12,18 +12,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// UserHandler es un handler para las operaciones de usuario.
-type UserHandler struct {
+// userHandler es un handler para las operaciones de usuario.
+type userHandler struct {
 	userService services.UserServicer // Dependencia del servicio de usuario
 }
 
-// NewUserHandler crea una nueva instancia de UserHandler.
-func NewUserHandler(userService services.UserServicer) *UserHandler {
-	return &UserHandler{userService: userService}
+// NewuserHandler crea una nueva instancia de userHandler.
+func NewuserHandler(userService services.UserServicer) *userHandler {
+	return &userHandler{userService: userService}
 }
 
 // RegisterUser maneja el registro de nuevos usuarios.
-func (h *UserHandler) RegisterUser(c *gin.Context) {
+func (h *userHandler) RegisterUser(c *gin.Context) {
 	var userInput user.RegisterUserInput
 
 	if err := c.ShouldBindJSON(&userInput); err != nil {
@@ -42,7 +42,7 @@ func (h *UserHandler) RegisterUser(c *gin.Context) {
 }
 
 // GetAuthenticatedUser recupera la información del usuario autenticado.
-func (h *UserHandler) GetAuthenticatedUser(c *gin.Context) {
+func (h *userHandler) GetAuthenticatedUser(c *gin.Context) {
 	userFromContext, exists := c.Get(middleware.UserContextKey)
 
 	if !exists {
@@ -69,5 +69,5 @@ func (h *UserHandler) GetAuthenticatedUser(c *gin.Context) {
 }
 
 // GetLibrary and ServeAudio would go here too if they are user-specific
-// func (h *UserHandler) GetLibrary(c *gin.Context) { ... }
-// func (h *UserHandler) ServeAudio(c *gin.Context) { ... }
+// func (h *userHandler) GetLibrary(c *gin.Context) { ... }
+// func (h *userHandler) ServeAudio(c *gin.Context) { ... }

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/db"
 	"github.com/demispreviotto/cajitamusical/cajitamusical-backend/internal/dto/song"
@@ -34,35 +33,91 @@ func NewSongService(songDB db.SongDBer) SongServicer {
 	return &songService{songDB: songDB}
 }
 
-// GetLibrary retrieves the song library from the database.
+// GetLibrary retrieves the song library from the database and maps them to SongResponse DTOs.
 func (s *songService) GetLibrary(ctx context.Context) ([]song.SongResponse, error) {
-	modelsSongs, err := s.songDB.GetSongLibrary(ctx)
+	songs, err := s.songDB.GetSongLibrary(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get song library from DB: %w", err)
 	}
-	var responseSongs []song.SongResponse
-	for _, song := range modelsSongs {
-		responseSongs = append(responseSongs, s.mapSongToResponse(song))
+
+	var songResponses []song.SongResponse
+	for _, s := range songs {
+		songResponses = append(songResponses, mapSongToResponse(&s))
 	}
-	return responseSongs, nil
+	return songResponses, nil
 }
 
-func (s *songService) mapSongToResponse(modelSong models.Song) song.SongResponse {
-	return song.SongResponse{
-		ID:              modelSong.ID,
-		Title:           modelSong.Title,
-		Artist:          modelSong.Artist,
-		Album:           modelSong.Album,
-		TrackNumber:     modelSong.TrackNumber,
-		Genre:           modelSong.Genre,
-		Year:            modelSong.Year,
-		DurationSeconds: modelSong.DurationSeconds,
-		AudioStreamURL:  fmt.Sprintf("/api/audio/%s", modelSong.ID.String()),
-		Filename:        modelSong.Filename,
-		CreatedAt:       modelSong.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:       modelSong.UpdatedAt.Format(time.RFC3339),
-		AlbumArtURL:     fmt.Sprintf("/api/album-art/%s", modelSong.AlbumArtPath),
+func mapSongToResponse(s *models.Song) song.SongResponse {
+	// Example: FilePath "Artist/Album/Song.mp3" -> AlbumArtURL "/api/album-art/Artist/Album/thumb.jpg"
+	albumArtURL := ""
+	if s.FilePath != "" {
+		albumArtURL = "/api/album-art/" + filepath.ToSlash(filepath.Join(filepath.Dir(s.FilePath), "thumb.jpg"))
 	}
+
+	return song.SongResponse{
+		ID:              s.ID,
+		Title:           s.Title,
+		Artist:          s.Artist,
+		Album:           s.Album,
+		TrackNumber:     s.TrackNumber,
+		Genre:           s.Genre,
+		Year:            s.Year,
+		DurationSeconds: s.DurationSeconds,
+		AudioStreamURL:  fmt.Sprintf("/api/audio/%s", s.ID.String()),
+		Filename:        s.Filename,
+		CreatedAt:       s.CreatedAt,
+		UpdatedAt:       s.UpdatedAt,
+		AlbumArtURL:     albumArtURL, // Set the derived URL here
+	}
+}
+
+func (s *songService) GetAlbumArtPath(songIDStr string) (string, error) {
+	if songIDStr == "" {
+		return "", fmt.Errorf("song ID is required")
+	}
+
+	songID, err := uuid.Parse(songIDStr)
+	if err != nil {
+		return "", fmt.Errorf("invalid song ID format: %w", err)
+	}
+
+	ctx := context.Background() // Or pass context from handler
+	song, err := s.songDB.GetSongByID(ctx, songID)
+	if err != nil {
+		log.Printf("Service: Song with ID %s not found for album art: %v", songID.String(), err)
+		return "", fmt.Errorf("album art not found for song ID %s", songIDStr)
+	}
+
+	if song.FilePath == "" { // Check FilePath instead of AlbumArtPath
+		return "", fmt.Errorf("song has no file path to derive album art from for ID %s", songIDStr)
+	}
+
+	musicDir := os.Getenv("MUSIC_DIRECTORY")
+	if musicDir == "" {
+		return "", fmt.Errorf("MUSIC_DIRECTORY environment variable not set")
+	}
+	relativeArtPath := filepath.Join(filepath.Dir(song.FilePath), "thumb.jpg")
+	fullPath := filepath.Join(musicDir, relativeArtPath)
+	absMusicDir, err := filepath.Abs(musicDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to get absolute music directory: %w", err)
+	}
+	absFullPath, err := filepath.Abs(fullPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to get absolute album art path: %w", err)
+	}
+
+	if !strings.HasPrefix(absFullPath, absMusicDir) {
+		return "", fmt.Errorf("attempted path traversal: %s", fullPath)
+	}
+
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		// Log this as a warning, not necessarily an error, as not all albums might have art.
+		log.Printf("Album art image not found at expected path: %s for song ID %s", fullPath, songIDStr)
+		return "", fmt.Errorf("album art image not found for song ID %s", songIDStr) // Still return error to handler
+	}
+
+	return fullPath, nil
 }
 
 // ScanMusicLibrary triggers the music directory scan and database update.
@@ -124,57 +179,6 @@ func (s *songService) GetSongFilePath(songIDStr string) (string, error) {
 
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 		return "", fmt.Errorf("audio file not found at path: %s", fullPath)
-	}
-
-	return fullPath, nil
-}
-
-// GetAlbumArtPath retrieves the full file path for an album art image.
-func (s *songService) GetAlbumArtPath(songIDStr string) (string, error) { // Changed parameter name to songIDStr
-	if songIDStr == "" {
-		return "", fmt.Errorf("song ID is required")
-	}
-
-	songID, err := uuid.Parse(songIDStr)
-	if err != nil {
-		return "", fmt.Errorf("invalid song ID format: %w", err)
-	}
-
-	ctx := context.Background() // Or pass context from handler
-	song, err := s.songDB.GetSongByID(ctx, songID)
-	if err != nil {
-		log.Printf("Service: Song with ID %s not found: %v", songID.String(), err)
-		return "", fmt.Errorf("album art not found for song ID %s", songIDStr)
-	}
-
-	if song.AlbumArtPath == "" {
-		return "", fmt.Errorf("no album art path found for song ID %s", songIDStr)
-	}
-
-	musicDir := os.Getenv("MUSIC_DIRECTORY")
-	if musicDir == "" {
-		return "", fmt.Errorf("MUSIC_DIRECTORY environment variable not set")
-	}
-
-	// Construct the full path using MUSIC_DIRECTORY and the song's AlbumArtPath
-	fullPath := filepath.Join(musicDir, song.AlbumArtPath)
-
-	// Security check: ensure the resolved path is indeed under MUSIC_DIRECTORY
-	absMusicDir, err := filepath.Abs(musicDir)
-	if err != nil {
-		return "", fmt.Errorf("failed to get absolute music directory: %w", err)
-	}
-	absFullPath, err := filepath.Abs(fullPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to get absolute album art path: %w", err)
-	}
-
-	if !strings.HasPrefix(absFullPath, absMusicDir) {
-		return "", fmt.Errorf("attempted path traversal: %s", fullPath)
-	}
-
-	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		return "", fmt.Errorf("album art image not found at path: %s", fullPath)
 	}
 
 	return fullPath, nil

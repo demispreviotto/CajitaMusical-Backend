@@ -29,9 +29,9 @@ func SetupRoutes(router *gin.Engine) {
 	songService := services.NewSongService(songDB)
 
 	// Initialize handlers with their service dependencies
-	userHandler := handlers.NewUserHandler(userService)
-	authHandler := handlers.NewAuthHandler(authService)
-	songHandler := handlers.NewSongHandler(songService)
+	userHandler := handlers.NewuserHandler(userService)
+	authHandler := handlers.NewauthHandler(authService)
+	songHandler := handlers.NewsongHandler(songService)
 
 	// Initialize the AuthMiddleware with its DB dependencies
 	authMiddleware := middleware.NewAuthMiddleware(sessionDB, userDB)
@@ -52,9 +52,8 @@ func SetupRoutes(router *gin.Engine) {
 		// Song routes
 		protected.GET("/library", songHandler.GetLibrary)
 		protected.GET("/audio/:filename", songHandler.ServeAudio)
-		protected.GET("/album-art/:filename", songHandler.ServeAlbumArt)
+		protected.GET("/album-art/*filepath", songHandler.ServeAlbumArt)
 	}
-
 	// Admin routes
 	admin := router.Group("/api/admin")
 	admin.Use(authMiddleware.Handler())

@@ -104,6 +104,12 @@ func (sdb *songDB) ScanAndStoreSongs(ctx context.Context) (*song.MusicScanResult
 			return nil
 		}
 
+		// Skip macOS resource fork files (._ prefixed files)
+		if strings.HasPrefix(info.Name(), "._") {
+			log.Printf("Skipping macOS resource fork file: %s", path)
+			return nil
+		}
+
 		ext := strings.ToLower(filepath.Ext(path))
 		if ext != ".mp3" && ext != ".flac" && ext != ".m4a" {
 			return nil
@@ -151,35 +157,30 @@ func (sdb *songDB) ScanAndStoreSongs(ctx context.Context) (*song.MusicScanResult
 		if pic := t.Picture(); pic != nil {
 			img, _, err := image.Decode(bytes.NewReader(pic.Data))
 			if err != nil {
-				log.Printf("Error decoding album art for %s: %v", newSong.Title, err)
-				result.Errors = append(result.Errors, fmt.Sprintf("Error decoding album art for %s: %v", newSong.Title, err))
+				log.Printf("Error decoding album art for %s (Song: %s): %v", newSong.FilePath, newSong.Title, err)
+				result.Errors = append(result.Errors, fmt.Sprintf("Error decoding album art for %s: %v", newSong.FilePath, err))
 			} else {
-				artTargetDir := filepath.Join(musicDir, filepath.Dir(newSong.FilePath))
-				artFilePath := filepath.Join(artTargetDir, "thumb.jpg")
+				artTargetDir := filepath.Dir(path)                      // Get the directory of the current music file
+				artFilePath := filepath.Join(artTargetDir, "thumb.jpg") // Full path for thumb.jpg
 
-				// Ensure the target directory for the album art exists (e.g., Artist/Album folder)
 				if err := os.MkdirAll(artTargetDir, 0755); err != nil {
 					log.Printf("Error creating album art directory %s: %v", artTargetDir, err)
 					result.Errors = append(result.Errors, fmt.Sprintf("Error creating album art directory %s: %v", artTargetDir, err))
 				} else {
-					outFile, err := os.Create(artFilePath) // os.Create truncates/overwrites if file exists
+					outFile, err := os.Create(artFilePath)
 					if err != nil {
 						log.Printf("Error creating album art file %s: %v", artFilePath, err)
 						result.Errors = append(result.Errors, fmt.Sprintf("Error creating album art file %s: %v", artFilePath, err))
 					} else {
 						defer outFile.Close()
 						if err := jpeg.Encode(outFile, img, &jpeg.Options{Quality: 90}); err != nil {
-							log.Printf("Error encoding album art to JPEG for %s: %v", newSong.Title, err)
-							result.Errors = append(result.Errors, fmt.Sprintf("Error encoding album art to JPEG for %s: %v", newSong.Title, err))
+							log.Printf("Error encoding album art to JPEG for %s: %v", artFilePath, err)
+							result.Errors = append(result.Errors, fmt.Sprintf("Error encoding album art to JPEG for %s: %v", artFilePath, err))
 						}
+						// AlbumArtPath is NOT set on newSong here, as it's no longer a field.
 					}
 				}
-				// newSong.AlbumArtPath should be the relative path from MUSIC_DIRECTORY to thumb.jpg
-				newSong.AlbumArtPath = filepath.ToSlash(filepath.Join(filepath.Dir(newSong.FilePath), "thumb.jpg"))
 			}
-		} else {
-			// If no picture embedded, ensure AlbumArtPath is empty or null in DB
-			newSong.AlbumArtPath = ""
 		}
 
 		if existingSong, found := existingSongMap[newSong.FilePath]; found {

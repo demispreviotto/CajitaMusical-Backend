@@ -1,6 +1,10 @@
 package song
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // SongResponse defines the response structure for a single song.
 type SongResponse struct {
@@ -14,9 +18,10 @@ type SongResponse struct {
 	DurationSeconds int       `json:"duration_seconds"`
 	AudioStreamURL  string    `json:"audio_stream_url"`
 	Filename        string    `json:"filename"`
-	CreatedAt       string    `json:"created_at"`
-	UpdatedAt       string    `json:"updated_at"`
-	AlbumArtURL     string    `json:"album_art_url,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	AlbumArtURL     string    `json:"album_art_url"`
+	// AlbumArtURL     string    `json:"album_art_url,omitempty"`
 }
 
 // ListSongsResponse defines the response structure for a list of songs.
